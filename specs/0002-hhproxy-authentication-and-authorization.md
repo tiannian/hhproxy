@@ -4,9 +4,11 @@
 
 This specification defines the control-plane and data-plane contract for the HHProxy system.
 
+The `hhproxy-server` authentication surface is intentionally limited to Google login and email login. The server does not maintain per-user profile records.
+
 The system is divided into two components:
 
-- `hhproxy-server`: the control plane responsible for authentication, authorization, token issuance, refresh token handling, and public key distribution
+- `hhproxy-server`: the control plane responsible for Google login, email login, authorization, token issuance, refresh token handling, and public key distribution
 - `hhproxyd`: the data plane responsible for accepting proxy connections, validating access tokens, and applying the upstream configuration embedded in the token
 
 The system uses JSON Web Tokens (JWT) as access tokens. The access token contains the upstream configuration directly, so the data plane does not query the server for runtime routing data.
@@ -17,6 +19,8 @@ The system also uses refresh tokens for renewing access tokens. Refresh tokens a
 
 This specification applies to the following behavior:
 
+- Google login and email login support in `hhproxy-server`
+- the absence of per-user profile storage in `hhproxy-server`
 - access token issuance
 - refresh token issuance and renewal
 - JWT signature verification
@@ -36,6 +40,9 @@ This specification does not define:
 - firewall rule manipulation
 - implementation details of the JWT library
 - storage backend details for refresh tokens
+- passkey login
+- time-based one-time password login
+- any user profile schema beyond the authenticated subject identity
 
 ## Non-goals
 
@@ -46,6 +53,9 @@ The following are explicitly out of scope for this version:
 - upstream configuration refresh for already issued access tokens
 - streaming multiple logical flows over a single proxy connection
 - compatibility with legacy headers such as `X-UPSTREAM-CONFIG`
+- passkey-based authentication
+- time-based one-time password authentication
+- per-user profile management
 
 ## Detailed Specifications
 
@@ -57,7 +67,7 @@ The following are explicitly out of scope for this version:
 
 It is responsible for:
 
-- authenticating the user or client
+- authenticating the user through Google login or email login
 - issuing refresh tokens
 - issuing access tokens as JWTs
 - signing JWTs with the server private key
@@ -65,6 +75,10 @@ It is responsible for:
 - validating refresh tokens before issuing a new access token
 
 `hhproxy-server` is the source of truth for token issuance.
+
+`hhproxy-server` must not require or persist a per-user profile record in order to authenticate a user or issue tokens.
+
+`hhproxy-server` may treat the verified email address as the internal subject identity for both Google login and email login.
 
 #### 1.2 `hhproxyd`
 
@@ -112,6 +126,8 @@ The access token must include at least the following logical claims:
 - unique token identifier
 - authorization scope or permission set
 - upstream configuration
+
+For Google login and email login, the subject should resolve to the verified email identity unless a deployment-specific subject mapping is defined elsewhere.
 
 The upstream configuration embedded in the JWT must include at least:
 
@@ -193,7 +209,7 @@ The specification requires public key retrieval, but it does not require `hhprox
 The control-plane flow must be:
 
 1. The client authenticates with `hhproxy-server`.
-2. `hhproxy-server` validates the client credentials.
+2. `hhproxy-server` validates the client credentials through Google login or email login.
 3. `hhproxy-server` issues:
    - one access token as a JWT
    - one refresh token
